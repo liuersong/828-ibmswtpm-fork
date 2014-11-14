@@ -1,0 +1,3 @@
+*.tar.gz
+*.o
+tpm_server
