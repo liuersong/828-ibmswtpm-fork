@@ -172,54 +172,46 @@ static void mainLoop(void *mainLoopArgs)
 #else
     printf("mainLoop:\n");
 #endif    
+
     while (TRUE) {
-        /* connect to the client */
-        if (rc == 0) {
-            rc = TPM_IO_Connect(&connection_fd,
-                                mainLoopArgs);
-        }
-        /* was connecting successful? */
-        if (rc == 0) {
-            /* Read the command.  The number of bytes is determined by 'paramSize' in the stream */
-            if (rc == 0) {
-                rc = TPM_IO_Read(&connection_fd, command, &command_length, sizeof(command),
-                                 mainLoopArgs);
-            }
-            if (rc == 0) {
-		rlength = 0;				/* clear the response buffer */
-		rc = TPM_ProcessA(&rbuffer,
-				  &rlength,
-				  &rTotal,
-				  command,		/* complete command array */
-				  command_length);	/* actual bytes in command */
-	    }
-            /* write the results */
-            if (rc == 0) {
-                rc = TPM_IO_Write(&connection_fd, rbuffer, rlength);
-            }
-#ifdef TPM_VOLATILE_STORE
-	    /* temporary code to test TPM_VOLATILE_STORE */
-#ifdef TPM_VOLATILE_TEST
-	    /* for test only, delete and reload the global state after every ordinal */
-            if (rc == 0) {
-		if (rc == 0) {
-		    TPM_Global_Delete(tpm_instances[0]);
-		    rc = TPM_Global_Init(tpm_instances[0]);
-		}
-		if (rc == 0) {
-		    tpm_instances[0]->tpm_number = 0;
-		    rc = TPM_Global_Load(tpm_instances[0]);
-		}
-	    }
-#endif	/* temporary test code */
-#endif	/* TPM_VOLATILE_STORE */
-            /* disconnect from the client, do this even if the read or write fails */
-            rc = TPM_IO_Disconnect(&connection_fd);
-        }
-        /* clear the response buffer, does not deallocate memory */
-        rc = 0; /* A fatal TPM_Process() error should cause the TPM to enter shutdown.  IO errors
-                   are outside the TPM, so the TPM does not shut down.  The main loop should
-                   continue to function.*/
+      /* connect to the client.. hold them until they go away */
+      if (rc == 0) {
+          rc = TPM_IO_Connect(&connection_fd,
+                              mainLoopArgs);
+      }
+
+      while (TRUE) {
+          /* was connecting successful? */
+          if (rc == 0) {
+              /* Read the command.  The number of bytes is determined by 'paramSize' in the stream */
+              if (rc == 0) {
+                  rc = TPM_IO_Read(&connection_fd, command, &command_length, sizeof(command),
+                                   mainLoopArgs);
+                  if (rc != 0) {
+                    rc = 0; // Reset it
+                    break;
+                  }
+              }
+              if (rc == 0) {
+                rlength = 0;        /* clear the response buffer */
+                rc = TPM_ProcessA(&rbuffer,
+                      &rlength,
+                      &rTotal,
+                      command,    /* complete command array */
+                      command_length);  /* actual bytes in command */
+                  }
+              /* write the results */
+              if (rc == 0) {
+                  rc = TPM_IO_Write(&connection_fd, rbuffer, rlength);
+              }
+              /* disconnect from the client, do this even if the read or write fails */
+              // rc = TPM_IO_Disconnect(&connection_fd);
+          }
+          /* clear the response buffer, does not deallocate memory */
+          rc = 0; /* A fatal TPM_Process() error should cause the TPM to enter shutdown.  IO errors
+                     are outside the TPM, so the TPM does not shut down.  The main loop should
+                     continue to function.*/
+      }
     }
 #ifdef TPM_POSIX
     return NULL;
